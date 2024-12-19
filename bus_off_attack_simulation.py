@@ -129,7 +129,7 @@ class CANBus:
             if self.victim_ecu.mode == BUSS_OFF or self.adversary_ecu.mode == BUSS_OFF:
                 break
 
-        count += 1
+            count += 1
     
         self.plot_victimTec_history()
 
