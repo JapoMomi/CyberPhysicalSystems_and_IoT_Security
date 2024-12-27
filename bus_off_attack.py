@@ -78,6 +78,7 @@ class ECU:
         self.passive_flag = False
         self.active_flag = False
         self.retransmission_needed = False
+        self.retransmission_delay = 0.1
         # All ECUs start in Error Active mode
         self.status = ERROR_ACTIVE
         
@@ -96,6 +97,7 @@ class ECU:
         elif 127 < self.tec <= 255 or 127 < self.rec <= 255:
 
             self.status = ERROR_PASSIVE
+            self.retransmission_delay = 0.5
 
         elif self.tec > 255:
 
@@ -259,7 +261,7 @@ def run_ecu(ecu, packet_id, data, canbus, barrier):
             # Sincronizzazione prima dell'invio
             barrier.wait(timeout=1)  # Aggiungi un timeout per evitare blocchi indefiniti
         except threading.BrokenBarrierError:
-            print(f"Barrier broken for ECU {ecu.ecu_id}")
+            #print(f"Barrier broken for ECU {ecu.ecu_id}")
             break
         
         if ecu.retransmission_needed:
@@ -273,7 +275,7 @@ def run_ecu(ecu, packet_id, data, canbus, barrier):
             # Sincronizzazione prima dell'invio
             barrier.wait(timeout=1)  # Aggiungi un timeout per evitare blocchi indefiniti
         except threading.BrokenBarrierError:
-            print(f"Barrier broken for ECU {ecu.ecu_id}")
+            #print(f"Barrier broken for ECU {ecu.ecu_id}")
             break
 
         ecu.check_duplicate_ids(packet_id, canbus)
@@ -282,14 +284,14 @@ def run_ecu(ecu, packet_id, data, canbus, barrier):
             # Sincronizzazione prima dell'invio
             barrier.wait(timeout=1)  # Aggiungi un timeout per evitare blocchi indefiniti
         except threading.BrokenBarrierError:
-            print(f"Barrier broken for ECU {ecu.ecu_id}")
+            #print(f"Barrier broken for ECU {ecu.ecu_id}")
             break
 
         ecu.tec_rec_check(packet_id, canbus)
         
-        print("----------------------------------------------------------------")
         # Aspetta l'intervallo
-        time.sleep(0.1)
+        time.sleep(ecu.retransmission_delay)
+        print("----------------------------------------------------------------")
 
 
 def plot_tec_history(*ecus):
