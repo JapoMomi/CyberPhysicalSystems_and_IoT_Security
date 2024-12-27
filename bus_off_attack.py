@@ -21,6 +21,7 @@ ADVERSARY_ECU = "Adversary"
 
 running = True
 
+
 class Packet:
     def __init__(self, ecu_id, id, rtr, data, control=CONTROL, sof=SOF, ack=ACK, eof=EOF, crc=CRC):
         # Indicates which ECU sends the packet
@@ -80,8 +81,10 @@ class ECU:
         # All ECUs start in Error Active mode
         self.status = ERROR_ACTIVE
         
-        self.tec_history = []
-        self.tec_history.append(self.tec)
+        self.tec_history = [0]
+        #self.tec_history.append(self.tec)
+        self.tec_timestamp = [time.time()]
+        #self.tec_timestamp.append(time.time())
         self.sent_packets = {}  # Store all packets sent with their ID as key
 
     def ecu_status_check(self):
@@ -170,9 +173,7 @@ class ECU:
             self.ecu_status_check()
             duplicates = [msg for msg in canbus.packet_log if msg.get_Id() == packet_id and msg.get_EcuId() != self.ecu_id]
             
-            if len(duplicates) > 0:
-                #print(f"ECU {self.ecu_id} detected duplicate ID: {packet_id}. Comparing packets...")
-                
+            if len(duplicates) > 0:                
                 # Confronta i pacchetti duplicati
                 for duplicate in duplicates:
                     
@@ -184,14 +185,17 @@ class ECU:
                             
                             self.tec += 8
                             self.tec_history.append(self.tec)
+                            self.tec_timestamp.append(time.time())
                             self.rec += 8
 
                         elif self.status == ERROR_PASSIVE and self.passive_flag:
 
                             self.tec += 8
                             self.tec_history.append(self.tec)
+                            self.tec_timestamp.append(time.time())
                             self.tec -= 1
                             self.tec_history.append(self.tec)
+                            self.tec_timestamp.append(time.time())
                             self.rec += 8
                             self.rec -= 1
                         
@@ -201,6 +205,7 @@ class ECU:
 
                                 self.tec -= 1
                                 self.tec_history.append(self.tec)
+                                self.tec_timestamp.append(time.time())
                                 self.rec -= 1
 
             self.ecu_status_check()
@@ -237,7 +242,7 @@ class CANBus:
 def run_ecu(ecu, packet_id, data, canbus, barrier):
     
     global running
-    while running and ecu in canbus.ecus and len(canbus.ecus) != 1:
+    while running and ecu in canbus.ecus and len(canbus.ecus) > 1:
         
         canbus.packet_log.clear()
         
@@ -245,12 +250,17 @@ def run_ecu(ecu, packet_id, data, canbus, barrier):
         ecu.ecu_status_check()
         # If the ECU is in a bus-off state --> disconnect it from the can bus
         if ecu.status == BUSS_OFF:
-            canbus.disconnect_ecu(ecu)
+            with canbus.lock:
+                canbus.disconnect_ecu(ecu)
             running = False
             break
 
-        # Sincronizzazione prima dell'invio
-        barrier.wait()
+        try:
+            # Sincronizzazione prima dell'invio
+            barrier.wait(timeout=1)  # Aggiungi un timeout per evitare blocchi indefiniti
+        except threading.BrokenBarrierError:
+            print(f"Barrier broken for ECU {ecu.ecu_id}")
+            break
         
         if ecu.retransmission_needed:
             # Ritrasmetti il pacchetto precedente
@@ -259,27 +269,38 @@ def run_ecu(ecu, packet_id, data, canbus, barrier):
             # Invia un nuovo pacchetto
             ecu.send_packet(packet_id, data, canbus)
 
-        # Sincronizzazione prima del controllo
-        barrier.wait()
+        try:
+            # Sincronizzazione prima dell'invio
+            barrier.wait(timeout=1)  # Aggiungi un timeout per evitare blocchi indefiniti
+        except threading.BrokenBarrierError:
+            print(f"Barrier broken for ECU {ecu.ecu_id}")
+            break
 
         ecu.check_duplicate_ids(packet_id, canbus)
 
-        barrier.wait()
+        try:
+            # Sincronizzazione prima dell'invio
+            barrier.wait(timeout=1)  # Aggiungi un timeout per evitare blocchi indefiniti
+        except threading.BrokenBarrierError:
+            print(f"Barrier broken for ECU {ecu.ecu_id}")
+            break
 
         ecu.tec_rec_check(packet_id, canbus)
         
         print("----------------------------------------------------------------")
         # Aspetta l'intervallo
-        time.sleep(1)
+        time.sleep(0.1)
 
 
 def plot_tec_history(*ecus):
     for ecu in ecus:
+        # Calcola l'asse x come differenza di tempo rispetto al primo timestamp
+        x_axis = [t - ecu.tec_timestamp[0] for t in ecu.tec_timestamp]
         if ecu.attack_mode == ADVERSARY_ECU:
-            plt.plot(ecu.tec_history, label=f"ECU {ecu.ecu_id} ({ecu.attack_mode})", linestyle='--') 
+            plt.plot(x_axis, ecu.tec_history, label=f"ECU {ecu.ecu_id} ({ecu.attack_mode})", linestyle='--')
         else:
-            plt.plot(ecu.tec_history, label=f"ECU {ecu.ecu_id} ({ecu.attack_mode})") 
-    plt.xlabel("Time (iterations)")
+            plt.plot(x_axis, ecu.tec_history, label=f"ECU {ecu.ecu_id} ({ecu.attack_mode})")
+    plt.xlabel("Time (seconds)")
     plt.ylabel("Transmit Error Counter (TEC)")
     plt.title("TEC Evolution of ECUs")
     plt.legend()
