@@ -164,7 +164,7 @@ class ECU:
                             if self.attack_mode == ADVERSARY_ECU:
                                 # Find the victim ecu in case self is an adversary ECU
                                 victim_ecu = next((ecu for ecu in canbus.ecus if ecu.ecu_id == self.adv_target), None)
-
+                                # Set the active flag of the adversary to True only if also the victim is in ERROR_ACTIVE
                                 if victim_ecu.status == ERROR_ACTIVE:
                                     self.active_flag = True
                                     
