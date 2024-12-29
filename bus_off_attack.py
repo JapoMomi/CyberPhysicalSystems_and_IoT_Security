@@ -255,7 +255,6 @@ class CANBus:
         else:
             print(f"The ECU {ecu.ecu_id} is already connected")
 
-    # Disconnect the ECU to the CAN bus
     def disconnect_ecu(self, ecu):
         """
             Disconnect an ECU from the CAN bus.
@@ -269,7 +268,8 @@ class CANBus:
 
 def run_ecu(ecu, packet_id, data, canbus, barrier):
     """
-    Simulate the behavior of an ECU, including sending packets and handling errors.
+    Simulate the behavior of an ECU, including sending packets and handling errors 
+    throug ECU functions.
 
     Parameters:
     - ecu: The ECU object representing the node in the CAN bus.
