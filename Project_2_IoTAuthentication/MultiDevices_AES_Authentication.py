@@ -233,8 +233,8 @@ if __name__ == "__main__":
 
     print("\nLaunching ECC authentication program...\n")
     try:
-        subprocess.run(['python', 'ecc_authentication.py'], check=True)
+        subprocess.run(['python', 'MultiDevices_ECC_Authentication.py'], check=True)
     except subprocess.CalledProcessError as e:
-        print(f"Failed to run ECC program: {e}")
+        print(f"Failed to run MultiDevices_ECC_Authentication.py: {e}")
     except FileNotFoundError:
-        print("ecc_authentication.py program not found!")
+        print("MultiDevices_ECC_Authentication.py program not found!")
