@@ -23,8 +23,10 @@ class IoTDevice:
         """
         self.device_id = device_id
         # Generate ECDSA key pair using NIST P-256 curve
+        start_time = time.perf_counter()
         self.private_key = SigningKey.generate(curve=NIST256p)
         self.public_key = self.private_key.verifying_key
+        self.key_gen_time = (time.perf_counter() - start_time) * 1000
         self.sign_time = 0.0
         self.status = "Failed"
 
@@ -53,7 +55,6 @@ class Server:
     def __init__(self):
         """Initialize empty device registry and timing trackers"""
         self.registered_devices = {}
-        self.challenge_times = {}
         self.verify_times = {}
 
     def register_device(self, device_id, public_key_pem):
@@ -67,10 +68,7 @@ class Server:
         """
         Generate cryptographic challenge and track generation time
         """
-        start_time = time.perf_counter()
-        challenge = os.urandom(32)  # 256-bit challenge
-        self.challenge_times[device_id] = (time.perf_counter() - start_time) * 1000
-        return challenge
+        return os.urandom(32)  # 256-bit challenge
 
     def verify_signature(self, device_id, challenge, signature):
         """
@@ -117,7 +115,7 @@ def simulate_authentication(server, device):
     device.status = "Success" if verification_result else "Failed"
     
     return {
-        "challenge_time": server.challenge_times[device.device_id],
+        "key_gen_time": device.key_gen_time,
         "sign_time": device.sign_time,
         "verify_time": server.verify_times[device.device_id],
         "total_time": total_time,
@@ -137,11 +135,11 @@ if __name__ == "__main__":
     avg_table = PrettyTable()
     
     # Configure table columns
-    results_table.field_names = ["Device ID", "Challenge (ms)", "Signing (ms)", 
+    results_table.field_names = ["Device ID", "Key Gen (ms)", "Signing (ms)", 
                                "Verify (ms)", "Total (ms)", "Status"]
     
     # Data collection for averages
-    challenge_times = []
+    key_gen_times = []
     sign_times = []
     verify_times = []
     total_times = []
@@ -151,7 +149,7 @@ if __name__ == "__main__":
         device = devices[i]
         results_table.add_row([
             device.device_id,
-            f"{result['challenge_time']:.4f}",
+            f"{result['key_gen_time']:.4f}",
             f"{result['sign_time']:.4f}",
             f"{result['verify_time']:.4f}",
             f"{result['total_time']:.4f}",
@@ -160,7 +158,7 @@ if __name__ == "__main__":
         
         # Collect metrics for successful authentications
         if result['status'] == "Success":
-            challenge_times.append(result['challenge_time'])
+            key_gen_times.append(result['key_gen_time'])
             sign_times.append(result['sign_time'])
             verify_times.append(result['verify_time'])
             total_times.append(result['total_time'])
@@ -169,8 +167,8 @@ if __name__ == "__main__":
     avg_table.field_names = ["Metric", "Average Time (ms)"]
     
     # Calculate and add averages for successful authentications
-    if challenge_times:
-        avg_table.add_row(["Challenge Generation", f"{sum(challenge_times)/len(challenge_times):.4f}"])
+    if key_gen_times:
+        avg_table.add_row(["Key Generation", f"{sum(key_gen_times)/len(key_gen_times):.4f}"])
         avg_table.add_row(["Signature Creation", f"{sum(sign_times)/len(sign_times):.4f}"])
         avg_table.add_row(["Signature Verification", f"{sum(verify_times)/len(verify_times):.4f}"])
         avg_table.add_row(["Total Authentication", f"{sum(total_times)/len(total_times):.4f}"])
